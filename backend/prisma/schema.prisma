@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  firstName     String
+  lastName      String
+  email         String    @unique
+  password      String
+  role          String    // estudiante, profesor, tecnico, admin
+  theme         String    @default("light") // For dark mode preference
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  createdTickets Ticket[] @relation("CreatedTickets")
+  assignedTickets Ticket[] @relation("AssignedTickets")
+  comments       Comment[]
+  notifications  Notification[]
+  reports        Report[]
+}
+
+model Ticket {
+  id            String    @id @default(cuid())
+  title         String
+  description   String
+  status        String    // new, assigned, in_progress, resolved, closed
+  priority      String    // low, medium, high
+  category      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  creatorId     String
+  creator       User      @relation("CreatedTickets", fields: [creatorId], references: [id])
+  assigneeId    String?
+  assignee      User?     @relation("AssignedTickets", fields: [assigneeId], references: [id])
+  comments      Comment[]
+  history       TicketHistory[]
+  attachments   Attachment[]
+}
+
+model Comment {
+  id            String    @id @default(cuid())
+  content       String
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  ticketId      String
+  ticket        Ticket    @relation(fields: [ticketId], references: [id])
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+}
+
+model TicketHistory {
+  id            String    @id @default(cuid())
+  action        String
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  ticketId      String
+  ticket        Ticket    @relation(fields: [ticketId], references: [id])
+  userId        String
+}
+
+model Attachment {
+  id            String    @id @default(cuid())
+  filename      String
+  path          String
+  mimeType      String
+  size          Int
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  ticketId      String
+  ticket        Ticket    @relation(fields: [ticketId], references: [id])
+}
+
+model Notification {
+  id            String    @id @default(cuid())
+  title         String
+  description   String
+  read          Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+}
+
+model Report {
+  id            String    @id @default(cuid())
+  title         String
+  description   String
+  type          String    // performance, issue, suggestion
+  status        String    @default("pending") // pending, in_review, approved, rejected
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+}
