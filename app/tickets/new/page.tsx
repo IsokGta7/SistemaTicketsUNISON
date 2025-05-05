@@ -1,126 +1,128 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/components/ui/use-toast"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
+import { useSession } from "next-auth/react"
 
 export default function NewTicketPage() {
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [category, setCategory] = useState("")
-  const [priority, setPriority] = useState("medium")
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { data: session } = useSession()
   const router = useRouter()
   const { toast } = useToast()
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-
-    if (!title || !description || !category) {
-      toast({
-        title: "Campos faltantes",
-        description: "Por favor completa todos los campos requeridos",
-        variant: "destructive",
-      })
-      return
-    }
-
     setIsSubmitting(true)
+
+    const formData = new FormData(e.currentTarget)
+    const data = {
+      title: formData.get("title") as string,
+      description: formData.get("description") as string,
+      category: formData.get("category") as string,
+      priority: formData.get("priority") as string
+    }
 
     try {
       const response = await fetch("/api/tickets", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          title,
-          description,
-          category,
-          priority,
-        }),
+        body: JSON.stringify(data)
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Error al crear el ticket")
+        throw new Error("Error al crear el ticket")
       }
 
-      const ticket = await response.json()
-
       toast({
-        title: "Ticket creado",
-        description: "Tu solicitud de soporte ha sido enviada exitosamente",
+        title: "Éxito",
+        description: "Ticket creado exitosamente",
+        variant: "success"
       })
 
       router.push("/tickets")
     } catch (error) {
+      console.error("Error creating ticket:", error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Hubo un problema al crear tu ticket",
-        variant: "destructive",
+        description: "No se pudo crear el ticket",
+        variant: "destructive"
       })
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  if (!session) {
+    return null
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-unison-blue">Crear Nuevo Ticket</h2>
-        <p className="text-muted-foreground">Envía una nueva solicitud de soporte técnico</p>
+        <h2 className="text-3xl font-bold tracking-tight">Nuevo Ticket</h2>
+        <p className="text-muted-foreground">Crea un nuevo ticket de soporte técnico</p>
       </div>
 
       <Card>
-        <form onSubmit={handleSubmit}>
-          <CardHeader>
-            <CardTitle>Detalles del Ticket</CardTitle>
-            <CardDescription>Proporciona detalles sobre tu problema técnico</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <CardHeader>
+          <CardTitle>Detalles del Ticket</CardTitle>
+          <CardDescription>Proporciona la información necesaria para crear tu ticket</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="title">Título</Label>
               <Input
                 id="title"
-                placeholder="Breve resumen de tu problema"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                name="title"
+                placeholder="Describe brevemente el problema"
                 required
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="description">Descripción</Label>
+              <Textarea
+                id="description"
+                name="description"
+                placeholder="Proporciona detalles sobre el problema"
+                required
+                className="min-h-[150px]"
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>
-                <Select value={category} onValueChange={setCategory} required>
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="Selecciona categoría" />
+                <Select name="category" required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona una categoría" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Hardware">Hardware</SelectItem>
                     <SelectItem value="Software">Software</SelectItem>
-                    <SelectItem value="Red">Red</SelectItem>
+                    <SelectItem value="Network">Red</SelectItem>
                     <SelectItem value="Email">Email</SelectItem>
-                    <SelectItem value="Cuenta">Cuenta</SelectItem>
-                    <SelectItem value="Otro">Otro</SelectItem>
+                    <SelectItem value="Account">Cuenta</SelectItem>
+                    <SelectItem value="Storage">Almacenamiento</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="priority">Prioridad</Label>
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger id="priority">
-                    <SelectValue placeholder="Selecciona prioridad" />
+                <Select name="priority" defaultValue="medium">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona una prioridad" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="low">Baja</SelectItem>
@@ -131,36 +133,23 @@ export default function NewTicketPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Descripción</Label>
-              <Textarea
-                id="description"
-                placeholder="Descripción detallada de tu problema"
-                rows={6}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-              />
+            <div className="flex justify-end gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.back()}
+                disabled={isSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creando..." : "Crear Ticket"}
+              </Button>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="attachment">Archivos adjuntos (opcional)</Label>
-              <Input id="attachment" type="file" multiple />
-              <p className="text-xs text-muted-foreground">
-                Puedes subir capturas de pantalla o archivos relevantes para ayudarnos a entender mejor tu problema.
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button variant="outline" type="button" onClick={() => router.back()}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="bg-unison-red hover:bg-unison-red/90 text-white" disabled={isSubmitting}>
-              {isSubmitting ? "Enviando..." : "Enviar Ticket"}
-            </Button>
-          </CardFooter>
-        </form>
+          </form>
+        </CardContent>
       </Card>
     </div>
   )
 }
+

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { hash } from "bcrypt"
-import prisma from "@/lib/db"
+import bcrypt from "bcryptjs"
+import { query } from "@/lib/db"
 
 export async function POST(request: Request) {
   try {
@@ -8,43 +8,56 @@ export async function POST(request: Request) {
 
     // Validate input
     if (!firstName || !lastName || !email || !password || !role) {
-      return NextResponse.json({ message: "Todos los campos son requeridos" }, { status: 400 })
+      return NextResponse.json(
+        { message: "Todos los campos son requeridos" },
+        { status: 400 }
+      )
+    }
+
+    // Validate email format
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@unison\.mx$/i
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { message: "El correo electrónico debe ser un correo institucional de UNISON (@unison.mx)" },
+        { status: 400 }
+      )
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
+    const existingUser = await query(
+      'SELECT * FROM "User" WHERE email = $1',
+      [email]
+    )
 
-    if (existingUser) {
-      return NextResponse.json({ message: "El usuario ya existe" }, { status: 409 })
+    if (existingUser.rows.length > 0) {
+      return NextResponse.json(
+        { message: "El correo electrónico ya está registrado" },
+        { status: 400 }
+      )
     }
 
     // Hash password
-    const hashedPassword = await hash(password, 10)
+    const hashedPassword = await bcrypt.hash(password, 10)
 
     // Create user
-    const user = await prisma.user.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        password: hashedPassword,
-        role,
-      },
-    })
+    const result = await query(
+      `INSERT INTO "User" (id, "firstName", "lastName", email, password, role, "createdAt", "updatedAt")
+       VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING id, "firstName", "lastName", email, role, "createdAt", "updatedAt"`,
+      [firstName, lastName, email, hashedPassword, role]
+    )
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-      },
-    })
+    const user = result.rows[0]
+
+    return NextResponse.json(
+      { message: "Usuario creado exitosamente", user },
+      { status: 201 }
+    )
   } catch (error) {
     console.error("Registration error:", error)
-    return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 })
+    return NextResponse.json(
+      { message: "Error interno del servidor" },
+      { status: 500 }
+    )
   }
 }

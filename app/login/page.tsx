@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
@@ -11,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "../contexts/AuthContext"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -18,42 +17,22 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Error al iniciar sesión")
-      }
-
-      const data = await response.json()
-
-      // Store token in localStorage
-      localStorage.setItem("token", data.token)
-      localStorage.setItem("user", JSON.stringify(data.user))
-
+      await login(email, password)
       toast({
         title: "Inicio de sesión exitoso",
         description: "Bienvenido al Sistema de Soporte Técnico",
       })
-
-      router.push("/dashboard")
     } catch (error) {
       toast({
         title: "Error de inicio de sesión",
-        description:
-          error instanceof Error ? error.message : "Por favor verifica tus credenciales e intenta nuevamente",
+        description: error instanceof Error ? error.message : "Por favor verifica tus credenciales e intenta nuevamente",
         variant: "destructive",
       })
     } finally {
@@ -106,18 +85,14 @@ export default function LoginPage() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col">
-            <Button
-              type="submit"
-              className="w-full bg-unison-blue hover:bg-unison-blue/90 text-white"
-              disabled={isLoading}
-            >
+          <CardFooter className="flex flex-col space-y-4">
+            <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Button>
-            <p className="mt-4 text-center text-sm text-slate-500">
+            <p className="text-sm text-center text-gray-600">
               ¿No tienes una cuenta?{" "}
-              <Link href="/register" className="text-unison-blue hover:underline">
-                Regístrate
+              <Link href="/register" className="text-unison-blue hover:text-unison-blue/80">
+                Regístrate aquí
               </Link>
             </p>
           </CardFooter>

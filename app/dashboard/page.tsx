@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -8,123 +10,138 @@ import { Badge } from "@/components/ui/badge"
 import { AreaChart, BarChart } from "@/components/ui/chart"
 import { ArrowDown, ArrowUp, Clock, FileText, MoreHorizontal, Plus, Users } from "lucide-react"
 import Link from "next/link"
+import { useToast } from "@/hooks/use-toast"
 
-// Mock data for dashboard
-const mockTicketStats = {
-  total: 12,
-  open: 5,
-  inProgress: 3,
-  resolved: 4,
-  percentChange: 8.5,
+interface Ticket {
+  id: string
+  title: string
+  status: string
+  priority: string
+  category: string
+  createdAt: string
 }
 
-const mockRecentTickets = [
-  {
-    id: "T-1234",
-    title: "No puedo acceder a la impresora del departamento",
-    status: "in_progress",
-    priority: "medium",
-    created: "hace 2 horas",
-    category: "Hardware",
-  },
-  {
-    id: "T-1233",
-    title: "El correo no se sincroniza en mi dispositivo móvil",
-    status: "new",
-    priority: "high",
-    created: "hace 5 horas",
-    category: "Email",
-  },
-  {
-    id: "T-1232",
-    title: "Solicitud de instalación de software",
-    status: "assigned",
-    priority: "low",
-    created: "hace 1 día",
-    category: "Software",
-  },
-  {
-    id: "T-1231",
-    title: "Problemas de conexión VPN",
-    status: "resolved",
-    priority: "high",
-    created: "hace 2 días",
-    category: "Red",
-  },
-]
+interface TicketStats {
+  total: number
+  open: number
+  inProgress: number
+  resolved: number
+  percentChange: number
+}
 
-const mockChartData = [
-  {
-    name: "Ene",
-    total: 12,
-  },
-  {
-    name: "Feb",
-    total: 18,
-  },
-  {
-    name: "Mar",
-    total: 16,
-  },
-  {
-    name: "Abr",
-    total: 24,
-  },
-  {
-    name: "May",
-    total: 32,
-  },
-  {
-    name: "Jun",
-    total: 28,
-  },
-]
+interface CategoryStats {
+  name: string
+  total: number
+}
 
-const mockCategoryData = [
-  {
-    name: "Hardware",
-    total: 35,
-  },
-  {
-    name: "Software",
-    total: 45,
-  },
-  {
-    name: "Red",
-    total: 20,
-  },
-  {
-    name: "Email",
-    total: 15,
-  },
-  {
-    name: "Cuenta",
-    total: 25,
-  },
-]
+interface TrendStats {
+  name: string
+  total: number
+}
 
 export default function DashboardPage() {
-  const [userRole, setUserRole] = useState<string>("estudiante")
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const { toast } = useToast()
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [stats, setStats] = useState<TicketStats>({
+    total: 0,
+    open: 0,
+    inProgress: 0,
+    resolved: 0,
+    percentChange: 0
+  })
+  const [categoryStats, setCategoryStats] = useState<CategoryStats[]>([])
+  const [trendStats, setTrendStats] = useState<TrendStats[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const userStr = localStorage.getItem("user")
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        if (user && user.role) {
-          setUserRole(user.role)
-        }
-      } catch (error) {
-        console.error("Error parsing user data:", error)
+    if (status === "unauthenticated") {
+      router.push("/login")
+      return
+    }
+
+    if (status === "authenticated") {
+      fetchTickets()
+      fetchStats()
+      if (session.user.role === "admin" || session.user.role === "tecnico") {
+        fetchCategoryStats()
+        fetchTrendStats()
       }
     }
-  }, [])
+  }, [status, session])
+
+  const fetchTickets = async () => {
+    try {
+      const response = await fetch("/api/tickets?limit=5")
+      if (!response.ok) throw new Error("Error al cargar los tickets")
+      const data = await response.json()
+      setTickets(data.tickets)
+    } catch (error) {
+      console.error("Error fetching tickets:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los tickets",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch("/api/tickets/stats")
+      if (!response.ok) throw new Error("Error al cargar las estadísticas")
+      const data = await response.json()
+      setStats(data)
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las estadísticas",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchCategoryStats = async () => {
+    try {
+      const response = await fetch("/api/tickets/categories")
+      if (!response.ok) throw new Error("Error al cargar las estadísticas por categoría")
+      const data = await response.json()
+      setCategoryStats(data)
+    } catch (error) {
+      console.error("Error fetching category stats:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las estadísticas por categoría",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const fetchTrendStats = async () => {
+    try {
+      const response = await fetch("/api/tickets/trends")
+      if (!response.ok) throw new Error("Error al cargar las tendencias")
+      const data = await response.json()
+      setTrendStats(data)
+    } catch (error) {
+      console.error("Error fetching trend stats:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las tendencias",
+        variant: "destructive"
+      })
+    }
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "new":
         return (
-          <Badge variant="outline" className="bg-unison-blue/10 text-unison-blue border-unison-blue/20">
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
             Nuevo
           </Badge>
         )
@@ -136,13 +153,13 @@ export default function DashboardPage() {
         )
       case "in_progress":
         return (
-          <Badge variant="outline" className="bg-unison-yellow/10 text-unison-brown border-unison-yellow/20">
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
             En Progreso
           </Badge>
         )
       case "resolved":
         return (
-          <Badge variant="outline" className="bg-unison-green/10 text-unison-green border-unison-green/20">
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
             Resuelto
           </Badge>
         )
@@ -161,13 +178,13 @@ export default function DashboardPage() {
         )
       case "medium":
         return (
-          <Badge variant="outline" className="bg-unison-yellow/10 text-unison-brown border-unison-yellow/20">
+          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
             Media
           </Badge>
         )
       case "high":
         return (
-          <Badge variant="outline" className="bg-unison-red/10 text-unison-red border-unison-red/20">
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
             Alta
           </Badge>
         )
@@ -176,18 +193,34 @@ export default function DashboardPage() {
     }
   }
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+    if (diffInHours < 24) {
+      return `hace ${Math.round(diffInHours)} horas`
+    } else {
+      return `hace ${Math.round(diffInHours / 24)} días`
+    }
+  }
+
+  if (isLoading) {
+    return <div>Cargando...</div>
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-unison-blue">Dashboard</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">
             ¡Bienvenido de nuevo! Aquí tienes un resumen de tus tickets de soporte técnico.
           </p>
         </div>
-        {(userRole === "estudiante" || userRole === "profesor") && (
+        {(session?.user?.role === "estudiante" || session?.user?.role === "profesor") && (
           <Link href="/tickets/new">
-            <Button className="bg-unison-red hover:bg-unison-red/90 text-white">
+            <Button>
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Ticket
             </Button>
@@ -198,7 +231,7 @@ export default function DashboardPage() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Resumen</TabsTrigger>
-          <TabsTrigger value="analytics" disabled={userRole !== "admin" && userRole !== "tecnico"}>
+          <TabsTrigger value="analytics" disabled={session?.user?.role !== "admin" && session?.user?.role !== "tecnico"}>
             Analíticas
           </TabsTrigger>
         </TabsList>
@@ -211,17 +244,17 @@ export default function DashboardPage() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{mockTicketStats.total}</div>
+                <div className="text-2xl font-bold">{stats.total}</div>
                 <p className="text-xs text-muted-foreground">
-                  {mockTicketStats.percentChange > 0 ? (
-                    <span className="text-unison-green flex items-center">
+                  {stats.percentChange > 0 ? (
+                    <span className="text-green-600 flex items-center">
                       <ArrowUp className="mr-1 h-3 w-3" />
-                      {mockTicketStats.percentChange}% desde el mes pasado
+                      {stats.percentChange}% desde el mes pasado
                     </span>
                   ) : (
-                    <span className="text-unison-red flex items-center">
+                    <span className="text-red-600 flex items-center">
                       <ArrowDown className="mr-1 h-3 w-3" />
-                      {Math.abs(mockTicketStats.percentChange)}% desde el mes pasado
+                      {Math.abs(stats.percentChange)}% desde el mes pasado
                     </span>
                   )}
                 </p>
@@ -234,7 +267,7 @@ export default function DashboardPage() {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{mockTicketStats.open}</div>
+                <div className="text-2xl font-bold">{stats.open}</div>
                 <p className="text-xs text-muted-foreground">Esperando asignación</p>
               </CardContent>
             </Card>
@@ -245,7 +278,7 @@ export default function DashboardPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{mockTicketStats.inProgress}</div>
+                <div className="text-2xl font-bold">{stats.inProgress}</div>
                 <p className="text-xs text-muted-foreground">Actualmente en proceso</p>
               </CardContent>
             </Card>
@@ -256,40 +289,34 @@ export default function DashboardPage() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{mockTicketStats.resolved}</div>
-                <p className="text-xs text-muted-foreground">Completados este mes</p>
+                <div className="text-2xl font-bold">{stats.resolved}</div>
+                <p className="text-xs text-muted-foreground">Tickets completados</p>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="col-span-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
               <CardHeader>
                 <CardTitle>Tickets Recientes</CardTitle>
-                <CardDescription>Tus tickets de soporte más recientes</CardDescription>
+                <CardDescription>Últimos tickets creados</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockRecentTickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                    >
+                  {tickets.map((ticket) => (
+                    <div key={ticket.id} className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <p className="text-sm font-medium leading-none">{ticket.title}</p>
-                        <div className="flex items-center gap-2 pt-1">
-                          <span className="text-xs text-muted-foreground">{ticket.id}</span>
-                          <span className="text-xs text-muted-foreground">•</span>
-                          <span className="text-xs text-muted-foreground">{ticket.category}</span>
+                        <Link href={`/tickets/${ticket.id}`} className="font-medium hover:underline">
+                          {ticket.title}
+                        </Link>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          {getStatusBadge(ticket.status)}
+                          {getPriorityBadge(ticket.priority)}
+                          <span>{ticket.category}</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(ticket.status)}
-                        {getPriorityBadge(ticket.priority)}
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Más opciones</span>
-                        </Button>
+                      <div className="text-sm text-muted-foreground">
+                        {formatDate(ticket.createdAt)}
                       </div>
                     </div>
                   ))}
@@ -297,62 +324,66 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="col-span-3">
-              <CardHeader>
-                <CardTitle>Actividad de Tickets</CardTitle>
-                <CardDescription>Volumen de tickets en los últimos 6 meses</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AreaChart
-                  data={mockChartData}
-                  index="name"
-                  categories={["total"]}
-                  colors={["#1B388F"]} // UNISON Blue
-                  valueFormatter={(value: number) => `${value} tickets`}
-                  className="h-[200px]"
-                />
-              </CardContent>
-            </Card>
+            {(session?.user?.role === "admin" || session?.user?.role === "tecnico") && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Distribución por Categoría</CardTitle>
+                  <CardDescription>Proporción de tickets por categoría</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <BarChart
+                    data={categoryStats}
+                    index="name"
+                    categories={["total"]}
+                    colors={["#1B388F"]}
+                    valueFormatter={(value: number) => `${value} tickets`}
+                    className="h-[200px]"
+                  />
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="col-span-4">
-              <CardHeader>
-                <CardTitle>Tickets por Categoría</CardTitle>
-                <CardDescription>Distribución de tickets por categorías</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <BarChart
-                  data={mockCategoryData}
-                  index="name"
-                  categories={["total"]}
-                  colors={["#1B388F"]} // UNISON Blue
-                  valueFormatter={(value: number) => `${value} tickets`}
-                  className="h-[300px]"
-                />
-              </CardContent>
-            </Card>
+        {(session?.user?.role === "admin" || session?.user?.role === "tecnico") && (
+          <TabsContent value="analytics" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tendencia de Tickets</CardTitle>
+                  <CardDescription>Evolución de tickets en los últimos meses</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AreaChart
+                    data={trendStats}
+                    index="name"
+                    categories={["total"]}
+                    colors={["#1B388F"]}
+                    valueFormatter={(value: number) => `${value} tickets`}
+                    className="h-[200px]"
+                  />
+                </CardContent>
+              </Card>
 
-            <Card className="col-span-3">
-              <CardHeader>
-                <CardTitle>Tiempo de Respuesta</CardTitle>
-                <CardDescription>Tiempo promedio para primera respuesta</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center justify-center h-[300px]">
-                  <div className="text-5xl font-bold text-unison-blue">4.2</div>
-                  <p className="text-muted-foreground">horas</p>
-                  <p className="text-sm text-unison-green flex items-center mt-4">
-                    <ArrowDown className="mr-1 h-3 w-3" />
-                    12% desde el mes pasado
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Distribución por Categoría</CardTitle>
+                  <CardDescription>Proporción de tickets por categoría</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <BarChart
+                    data={categoryStats}
+                    index="name"
+                    categories={["total"]}
+                    colors={["#1B388F"]}
+                    valueFormatter={(value: number) => `${value} tickets`}
+                    className="h-[200px]"
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

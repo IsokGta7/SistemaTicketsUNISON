@@ -1,82 +1,76 @@
 import { NextResponse } from "next/server"
-import prisma from "@/lib/prisma"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { query } from "@/lib/db"
 
 // POST /api/tickets/[id]/comments - Añadir un comentario a un ticket
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const ticketId = params.id
-    const { content } = await request.json()
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return new NextResponse("Unauthorized", { status: 401 })
+    }
 
-    // Validar contenido
+    const body = await request.json()
+    const { content } = body
+
     if (!content) {
-      return NextResponse.json({ message: "El contenido del comentario es requerido" }, { status: 400 })
+      return new NextResponse("Content is required", { status: 400 })
     }
 
-    // En una aplicación real, obtendríamos el usuario de la sesión
-    const userId = "user_demo_id" // Normalmente: session.user.id
+    const result = await query(
+      `INSERT INTO comments (ticket_id, user_id, content)
+       VALUES ($1, $2, $3)
+       RETURNING id, content, created_at as "createdAt"`,
+      [params.id, session.user.id, content]
+    )
 
-    // Verificar que el ticket existe
-    const ticket = await prisma.ticket.findUnique({
-      where: { id: ticketId },
+    // Get user details for the response
+    const user = await query(
+      `SELECT first_name as "userFirstName", last_name as "userLastName"
+       FROM users
+       WHERE id = $1`,
+      [session.user.id]
+    )
+
+    return NextResponse.json({
+      ...result.rows[0],
+      userFirstName: user.rows[0].userFirstName,
+      userLastName: user.rows[0].userLastName
     })
-
-    if (!ticket) {
-      return NextResponse.json({ message: "Ticket no encontrado" }, { status: 404 })
-    }
-
-    // Crear el comentario
-    const comment = await prisma.comment.create({
-      data: {
-        content,
-        ticketId,
-        userId,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-    })
-
-    // Registrar en el historial
-    await prisma.ticketHistory.create({
-      data: {
-        action: "Comentario añadido",
-        ticketId,
-        userId,
-      },
-    })
-
-    // Crear notificación para el creador del ticket (si no es el mismo usuario)
-    if (ticket.creatorId !== userId) {
-      await prisma.notification.create({
-        data: {
-          title: `Nuevo comentario en ticket #${ticketId}`,
-          description: `Se ha añadido un nuevo comentario a tu ticket: "${ticket.title}"`,
-          userId: ticket.creatorId,
-        },
-      })
-    }
-
-    // Si hay un asignado, notificarle también (si no es el mismo usuario)
-    if (ticket.assigneeId && ticket.assigneeId !== userId) {
-      await prisma.notification.create({
-        data: {
-          title: `Nuevo comentario en ticket #${ticketId}`,
-          description: `Se ha añadido un nuevo comentario al ticket: "${ticket.title}"`,
-          userId: ticket.assigneeId,
-        },
-      })
-    }
-
-    return NextResponse.json(comment, { status: 201 })
   } catch (error) {
-    console.error("Error al añadir comentario:", error)
-    return NextResponse.json({ message: "Error al añadir comentario" }, { status: 500 })
+    console.error("Error creating comment:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
+  }
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return new NextResponse("Unauthorized", { status: 401 })
+    }
+
+    const comments = await query(
+      `SELECT 
+        c.id,
+        c.content,
+        c.created_at as "createdAt",
+        u.first_name as "userFirstName",
+        u.last_name as "userLastName"
+      FROM comments c
+      JOIN users u ON c.user_id = u.id
+      WHERE c.ticket_id = $1
+      ORDER BY c.created_at ASC`,
+      [params.id]
+    )
+
+    return NextResponse.json(comments.rows)
+  } catch (error) {
+    console.error("Error fetching comments:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
