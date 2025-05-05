@@ -1,128 +1,100 @@
 import { NextResponse } from "next/server"
-import prisma from "@/lib/prisma"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { query } from "@/lib/db"
 
 // GET /api/tickets/[id] - Obtener un ticket específico
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const id = params.id
-
-    const ticket = await prisma.ticket.findUnique({
-      where: { id },
-      include: {
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        assignee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        comments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
-        },
-        history: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-      },
-    })
-
-    if (!ticket) {
-      return NextResponse.json({ message: "Ticket no encontrado" }, { status: 404 })
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
-    return NextResponse.json(ticket)
+    const ticket = await query(
+      `SELECT 
+        t.id,
+        t.title,
+        t.description,
+        t.status,
+        t.priority,
+        t.category,
+        t.created_at as "createdAt",
+        t.updated_at as "updatedAt",
+        c.first_name as "creatorFirstName",
+        c.last_name as "creatorLastName",
+        a.first_name as "assigneeFirstName",
+        a.last_name as "assigneeLastName"
+      FROM tickets t
+      LEFT JOIN users c ON t.creator_id = c.id
+      LEFT JOIN users a ON t.assignee_id = a.id
+      WHERE t.id = $1`,
+      [params.id]
+    )
+
+    if (!ticket.rows.length) {
+      return new NextResponse("Ticket not found", { status: 404 })
+    }
+
+    return NextResponse.json(ticket.rows[0])
   } catch (error) {
-    console.error("Error al obtener ticket:", error)
-    return NextResponse.json({ message: "Error al obtener ticket" }, { status: 500 })
+    console.error("Error fetching ticket:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
 
 // PATCH /api/tickets/[id] - Actualizar un ticket
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const id = params.id
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return new NextResponse("Unauthorized", { status: 401 })
+    }
+
+    if (session.user.role !== "admin" && session.user.role !== "tecnico") {
+      return new NextResponse("Forbidden", { status: 403 })
+    }
+
     const body = await request.json()
-    const { status, priority, assigneeId } = body
+    const { status } = body
 
-    // En una aplicación real, obtendríamos el usuario de la sesión
-    const userId = "user_demo_id" // Normalmente: session.user.id
-
-    // Verificar que el ticket existe
-    const existingTicket = await prisma.ticket.findUnique({
-      where: { id },
-    })
-
-    if (!existingTicket) {
-      return NextResponse.json({ message: "Ticket no encontrado" }, { status: 404 })
+    if (!status) {
+      return new NextResponse("Status is required", { status: 400 })
     }
 
-    // Actualizar el ticket
-    const updatedTicket = await prisma.ticket.update({
-      where: { id },
-      data: {
-        ...(status && { status }),
-        ...(priority && { priority }),
-        ...(assigneeId && { assigneeId }),
-        updatedAt: new Date(),
-      },
-    })
-
-    // Registrar cambios en el historial
-    if (status && status !== existingTicket.status) {
-      await prisma.ticketHistory.create({
-        data: {
-          action: `Estado cambiado a '${status}'`,
-          ticketId: id,
-          userId,
-        },
-      })
+    const validStatuses = ["new", "assigned", "in_progress", "resolved"]
+    if (!validStatuses.includes(status)) {
+      return new NextResponse("Invalid status", { status: 400 })
     }
 
-    if (priority && priority !== existingTicket.priority) {
-      await prisma.ticketHistory.create({
-        data: {
-          action: `Prioridad cambiada a '${priority}'`,
-          ticketId: id,
-          userId,
-        },
-      })
+    const result = await query(
+      `UPDATE tickets 
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [status, params.id]
+    )
+
+    if (!result.rows.length) {
+      return new NextResponse("Ticket not found", { status: 404 })
     }
 
-    if (assigneeId && assigneeId !== existingTicket.assigneeId) {
-      await prisma.ticketHistory.create({
-        data: {
-          action: `Ticket asignado a nuevo técnico`,
-          ticketId: id,
-          userId,
-        },
-      })
-    }
+    // Log the status change in ticket history
+    await query(
+      `INSERT INTO ticket_history (ticket_id, action, user_id)
+       VALUES ($1, $2, $3)`,
+      [params.id, `Status changed to ${status}`, session.user.id]
+    )
 
-    return NextResponse.json(updatedTicket)
+    return NextResponse.json(result.rows[0])
   } catch (error) {
-    console.error("Error al actualizar ticket:", error)
-    return NextResponse.json({ message: "Error al actualizar ticket" }, { status: 500 })
+    console.error("Error updating ticket:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }

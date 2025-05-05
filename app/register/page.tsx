@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
@@ -12,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "../contexts/AuthContext"
 
 export default function RegisterPage() {
   const [firstName, setFirstName] = useState("")
@@ -23,51 +22,32 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { register } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsLoading(true)
 
     if (password !== confirmPassword) {
       toast({
-        title: "Las contraseñas no coinciden",
-        description: "Por favor asegúrate de que las contraseñas coincidan",
+        title: "Error de validación",
+        description: "Las contraseñas no coinciden",
         variant: "destructive",
       })
+      setIsLoading(false)
       return
     }
 
-    setIsLoading(true)
-
     try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          email,
-          password,
-          role,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Error al registrar usuario")
-      }
-
+      await register(firstName, lastName, email, password, role)
       toast({
         title: "Registro exitoso",
-        description: "Tu cuenta ha sido creada correctamente",
+        description: "Tu cuenta ha sido creada exitosamente",
       })
-
-      router.push("/login")
     } catch (error) {
       toast({
         title: "Error de registro",
-        description: error instanceof Error ? error.message : "Hubo un problema al crear tu cuenta",
+        description: error instanceof Error ? error.message : "Ocurrió un error al crear tu cuenta",
         variant: "destructive",
       })
     } finally {
@@ -122,9 +102,9 @@ export default function RegisterPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="estudiante">Estudiante</SelectItem>
-                  <SelectItem value="profesor">Profesor</SelectItem>
-                  <SelectItem value="tecnico">Técnico</SelectItem>
-                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="docente">Docente</SelectItem>
+                  <SelectItem value="administrativo">Personal Administrativo</SelectItem>
+                  <SelectItem value="soporte">Personal de Soporte</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -149,18 +129,14 @@ export default function RegisterPage() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col">
-            <Button
-              type="submit"
-              className="w-full bg-unison-red hover:bg-unison-red/90 text-white"
-              disabled={isLoading}
-            >
-              {isLoading ? "Creando cuenta..." : "Registrarse"}
+          <CardFooter className="flex flex-col space-y-4">
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Creando cuenta..." : "Crear Cuenta"}
             </Button>
-            <p className="mt-4 text-center text-sm text-slate-500">
+            <p className="text-sm text-center text-gray-600">
               ¿Ya tienes una cuenta?{" "}
-              <Link href="/login" className="text-unison-blue hover:underline">
-                Iniciar Sesión
+              <Link href="/login" className="text-unison-blue hover:text-unison-blue/80">
+                Inicia sesión aquí
               </Link>
             </p>
           </CardFooter>

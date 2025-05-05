@@ -11,86 +11,88 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  firstName     String
-  lastName      String
-  email         String    @unique
-  password      String
-  role          String    // estudiante, profesor, tecnico, admin
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String   @unique
+  password  String
+  role      String    // estudiante, profesor, tecnico, admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime
   
   // Relations
-  createdTickets Ticket[] @relation("CreatedTickets")
-  assignedTickets Ticket[] @relation("AssignedTickets")
-  comments       Comment[]
-  notifications  Notification[]
+  createdTickets    Ticket[]  @relation("CreatedTickets")
+  assignedTickets   Ticket[]  @relation("AssignedTickets")
+  comments          Comment[]
+  ticketHistory     TicketHistory[]
+  notifications     Notification[]
 }
 
 model Ticket {
-  id            String    @id @default(cuid())
-  title         String
-  description   String
-  status        String    // new, assigned, in_progress, resolved, closed
-  priority      String    // low, medium, high
-  category      String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  status      String    // new, assigned, in_progress, resolved, closed
+  priority    String    // low, medium, high
+  category    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
   
   // Relations
-  creatorId     String
-  creator       User      @relation("CreatedTickets", fields: [creatorId], references: [id])
-  assigneeId    String?
-  assignee      User?     @relation("AssignedTickets", fields: [assigneeId], references: [id])
-  comments      Comment[]
-  history       TicketHistory[]
-  attachments   Attachment[]
+  creatorId   String   @map("creatorId")
+  creator     User     @relation("CreatedTickets", fields: [creatorId], references: [id])
+  assigneeId  String?  @map("assigneeId")
+  assignee    User?    @relation("AssignedTickets", fields: [assigneeId], references: [id])
+  comments    Comment[]
+  history     TicketHistory[]
+  attachments Attachment[]
 }
 
 model Comment {
-  id            String    @id @default(cuid())
-  content       String
-  createdAt     DateTime  @default(now())
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
   
   // Relations
-  ticketId      String
-  ticket        Ticket    @relation(fields: [ticketId], references: [id])
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
+  ticketId  String @map("ticketId")
+  ticket    Ticket @relation(fields: [ticketId], references: [id])
+  userId    String @map("userId")
+  user      User   @relation(fields: [userId], references: [id])
 }
 
 model TicketHistory {
-  id            String    @id @default(cuid())
-  action        String
-  createdAt     DateTime  @default(now())
+  id        String   @id @default(uuid())
+  action    String
+  createdAt DateTime @default(now())
   
   // Relations
-  ticketId      String
-  ticket        Ticket    @relation(fields: [ticketId], references: [id])
-  userId        String
+  ticketId  String @map("ticketId")
+  ticket    Ticket @relation(fields: [ticketId], references: [id])
+  userId    String @map("userId")
+  user      User   @relation(fields: [userId], references: [id])
 }
 
 model Attachment {
-  id            String    @id @default(cuid())
-  filename      String
-  path          String
-  mimeType      String
-  size          Int
-  createdAt     DateTime  @default(now())
+  id        String   @id @default(uuid())
+  filename  String
+  path      String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
   
   // Relations
-  ticketId      String
-  ticket        Ticket    @relation(fields: [ticketId], references: [id])
+  ticketId  String @map("ticketId")
+  ticket    Ticket @relation(fields: [ticketId], references: [id])
 }
 
 model Notification {
-  id            String    @id @default(cuid())
-  title         String
-  description   String
-  read          Boolean   @default(false)
-  createdAt     DateTime  @default(now())
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
   
   // Relations
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
+  userId      String @map("userId")
+  user        User   @relation(fields: [userId], references: [id])
 }
