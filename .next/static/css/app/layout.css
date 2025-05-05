@@ -1702,6 +1702,9 @@ video {
 .font-semibold {
   font-weight: 600;
 }
+.uppercase {
+  text-transform: uppercase;
+}
 .not-italic {
   font-style: normal;
 }
