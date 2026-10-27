@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { query } from "@/lib/db"
+import { checkTicketAccess } from "@/lib/ticket-guard"
 
 // GET /api/tickets/[id] - Obtener un ticket específico
 export async function GET(
@@ -12,6 +13,14 @@ export async function GET(
     const session = await getServerSession(authOptions)
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 })
+    }
+
+    const access = await checkTicketAccess(params.id, session.user)
+    if (access === "not_found") {
+      return new NextResponse("Ticket not found", { status: 404 })
+    }
+    if (access === "forbidden") {
+      return new NextResponse("Forbidden", { status: 403 })
     }
 
     const ticket = await query(
