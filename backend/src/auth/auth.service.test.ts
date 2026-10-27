@@ -2,7 +2,6 @@ import { AuthService } from "./auth.service"
 import prisma from "../db/client"
 import { hash } from "bcrypt"
 import { AuthError } from "./auth.errors"
-import { jest } from "@jest/globals"
 
 // Mock Prisma client
 jest.mock("../db/client", () => ({
