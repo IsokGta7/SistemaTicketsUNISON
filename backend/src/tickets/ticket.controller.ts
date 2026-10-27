@@ -1,7 +1,15 @@
 import type { Request, Response } from "express"
 import { ticketService } from "./ticket.service"
 import { canAccessOwned, isStaff } from "../auth/roles"
-import { createTicketDtoSchema, updateTicketDtoSchema, createCommentDtoSchema } from "./ticket.dto"
+import {
+  createTicketDtoSchema,
+  updateTicketDtoSchema,
+  createCommentDtoSchema,
+  ticketFiltersSchema,
+  type TicketFilters,
+} from "./ticket.dto"
+
+type TicketWhere = TicketFilters & { creatorId?: string }
 
 export class TicketController {
   async getAllTickets(req: Request, res: Response) {
@@ -11,12 +19,16 @@ export class TicketController {
         return res.status(401).json({ message: "Unauthorized" })
       }
 
-      const { status, priority, category } = req.query
+      const parsed = ticketFiltersSchema.safeParse({
+        status: req.query.status || undefined,
+        priority: req.query.priority || undefined,
+        category: req.query.category || undefined,
+      })
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid filters", errors: parsed.error.errors })
+      }
 
-      const filters: any = {}
-      if (status) filters.status = status
-      if (priority) filters.priority = priority
-      if (category) filters.category = category
+      const filters: TicketWhere = { ...parsed.data }
       // Students and professors only ever see the tickets they created.
       if (!isStaff(user.role)) filters.creatorId = user.id
 

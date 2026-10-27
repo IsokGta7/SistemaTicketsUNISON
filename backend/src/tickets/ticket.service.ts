@@ -1,8 +1,8 @@
 import prisma from "../db/client"
-import type { CreateTicketDto, TicketDto, UpdateTicketDto, CreateCommentDto } from "./ticket.dto"
+import type { CreateTicketDto, TicketDto, UpdateTicketDto, CreateCommentDto, TicketFilters } from "./ticket.dto"
 
 export class TicketService {
-  async getAllTickets(filters: any = {}): Promise<TicketDto[]> {
+  async getAllTickets(filters: TicketFilters & { creatorId?: string } = {}): Promise<TicketDto[]> {
     const tickets = await prisma.ticket.findMany({
       where: filters,
       include: {
