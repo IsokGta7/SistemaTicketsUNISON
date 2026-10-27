@@ -1,46 +1,17 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { verifySessionRole, redirectFor } from "@/lib/session-token"
 
-export function middleware(request: NextRequest) {
+// The role comes only from the signed "token" cookie. A missing JWT_SECRET
+// leaves every token unverifiable, so protected pages redirect to login.
+export async function middleware(request: NextRequest) {
   const token = request.cookies.get("token")?.value
-  const user = request.cookies.get("user")?.value
-  const { pathname } = request.nextUrl
+  const role = await verifySessionRole(token, process.env.JWT_SECRET ?? "")
 
-  // Rutas públicas
-  const publicPaths = ["/login", "/register", "/forgot-password"]
-  if (publicPaths.includes(pathname)) {
-    if (token && user) {
-      const parsedUser = JSON.parse(user)
-      // Redirigir a la página correspondiente según el rol
-      if (["admin", "tecnico"].includes(parsedUser.role)) {
-        return NextResponse.redirect(new URL("/dashboard", request.url))
-      } else if (["estudiante", "profesor"].includes(parsedUser.role)) {
-        return NextResponse.redirect(new URL("/tickets", request.url))
-      }
-    }
-    return NextResponse.next()
+  const target = redirectFor(request.nextUrl.pathname, role)
+  if (target) {
+    return NextResponse.redirect(new URL(target, request.url))
   }
-
-  // Rutas protegidas
-  if (!token || !user) {
-    return NextResponse.redirect(new URL("/login", request.url))
-  }
-
-  const parsedUser = JSON.parse(user)
-
-  // Verificar acceso a rutas según el rol
-  if (pathname.startsWith("/dashboard")) {
-    if (!["admin", "tecnico"].includes(parsedUser.role)) {
-      return NextResponse.redirect(new URL("/tickets", request.url))
-    }
-  }
-
-  if (pathname.startsWith("/tickets")) {
-    if (!["estudiante", "profesor"].includes(parsedUser.role)) {
-      return NextResponse.redirect(new URL("/dashboard", request.url))
-    }
-  }
-
   return NextResponse.next()
 }
 
