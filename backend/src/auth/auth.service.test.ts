@@ -2,6 +2,7 @@ import { AuthService } from "./auth.service"
 import prisma from "../db/client"
 import { hash } from "bcrypt"
 import { AuthError } from "./auth.errors"
+import { registerDtoSchema } from "./auth.dto"
 
 // Mock Prisma client
 jest.mock("../db/client", () => ({
@@ -34,7 +35,6 @@ describe("AuthService", () => {
           lastName: "User",
           email: "test@example.com",
           password: "password123",
-          role: "estudiante",
         }),
       ).rejects.toThrow(AuthError)
     })
@@ -58,7 +58,6 @@ describe("AuthService", () => {
         lastName: "User",
         email: "test@example.com",
         password: "password123",
-        role: "estudiante",
       })
 
       expect(result).toEqual({
@@ -70,6 +69,36 @@ describe("AuthService", () => {
         theme: "light",
       })
       expect(prisma.user.create).toHaveBeenCalled()
+    })
+  })
+
+  describe("register role", () => {
+    it("drops a client-supplied role when parsing the request body", () => {
+      const parsed = registerDtoSchema.parse({
+        firstName: "Test",
+        lastName: "User",
+        email: "test@example.com",
+        password: "password123",
+        role: "admin",
+      })
+
+      expect(parsed).not.toHaveProperty("role")
+    })
+
+    it("always stores the student role", async () => {
+      ;(prisma.user.findUnique as jest.Mock).mockResolvedValue(null)
+      ;(prisma.user.create as jest.Mock).mockResolvedValue({ id: "1", role: "estudiante" })
+
+      await authService.register({
+        firstName: "Test",
+        lastName: "User",
+        email: "test@example.com",
+        password: "password123",
+        role: "admin",
+      } as any)
+
+      const createArgs = (prisma.user.create as jest.Mock).mock.calls[0][0]
+      expect(createArgs.data.role).toBe("estudiante")
     })
   })
 

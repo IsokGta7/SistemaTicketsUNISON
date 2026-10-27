@@ -6,7 +6,8 @@ export const registerDtoSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email format"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(["estudiante", "profesor", "tecnico", "admin"]),
+  // No role field: self-registration always creates a student. Unknown keys,
+  // including a client-supplied role, are stripped by zod.
 })
 
 // Login DTO schema

@@ -5,6 +5,9 @@ import prisma from "../db/client"
 import { AuthError } from "./auth.errors"
 import type { LoginDto, RegisterDto, UserDto } from "./auth.dto"
 
+// Self-registration can only ever create this role; staff accounts are created by an admin.
+export const SELF_REGISTER_ROLE = "estudiante"
+
 export class AuthService {
   async register(data: RegisterDto): Promise<UserDto> {
     // Check if user already exists
@@ -26,7 +29,7 @@ export class AuthService {
         lastName: data.lastName,
         email: data.email,
         password: hashedPassword,
-        role: data.role,
+        role: SELF_REGISTER_ROLE,
       },
     })
 

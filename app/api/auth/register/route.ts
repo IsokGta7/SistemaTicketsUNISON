@@ -4,10 +4,12 @@ import { query } from "@/lib/db"
 
 export async function POST(request: Request) {
   try {
-    const { firstName, lastName, email, password, role } = await request.json()
+    // Self-registration always creates a student account; any role in the body is ignored.
+    const { firstName, lastName, email, password } = await request.json()
+    const role = "estudiante"
 
     // Validate input
-    if (!firstName || !lastName || !email || !password || !role) {
+    if (!firstName || !lastName || !email || !password) {
       return NextResponse.json(
         { message: "Todos los campos son requeridos" },
         { status: 400 }
