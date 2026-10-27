@@ -2,6 +2,13 @@ import { NextResponse } from "next/server"
 import { query } from "@/lib/db"
 import { sendPasswordResetEmail } from "@/lib/email"
 import jwt from "jsonwebtoken"
+import { getJwtSecret, PASSWORD_RESET_PURPOSE, PASSWORD_RESET_TTL } from "@/lib/auth-tokens"
+
+// Same answer whether or not the address has an account, so the form cannot
+// be used to find out who is registered.
+const GENERIC_RESPONSE = {
+  message: "Si existe una cuenta con este correo, recibirás un enlace para restablecer tu contraseña",
+}
 
 export async function POST(request: Request) {
   try {
@@ -21,19 +28,16 @@ export async function POST(request: Request) {
     )
 
     if (result.rows.length === 0) {
-      return NextResponse.json(
-        { message: "No se encontró una cuenta con este correo electrónico" },
-        { status: 404 }
-      )
+      return NextResponse.json(GENERIC_RESPONSE)
     }
 
     const user = result.rows[0]
 
     // Generate reset token
     const resetToken = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET || "your-secret-key",
-      { expiresIn: "1h" }
+      { userId: user.id, purpose: PASSWORD_RESET_PURPOSE },
+      getJwtSecret(),
+      { expiresIn: PASSWORD_RESET_TTL }
     )
 
     // Create reset link
@@ -43,15 +47,12 @@ export async function POST(request: Request) {
     const emailSent = await sendPasswordResetEmail(email, resetLink)
 
     if (!emailSent) {
-      return NextResponse.json(
-        { message: "Error al enviar el correo de recuperación" },
-        { status: 500 }
-      )
+      // Logged rather than returned: a 500 here would only ever happen for
+      // registered addresses and would give them away.
+      console.error("Forgot password: reset email could not be sent")
     }
 
-    return NextResponse.json({
-      message: "Se ha enviado un correo con las instrucciones para restablecer tu contraseña",
-    })
+    return NextResponse.json(GENERIC_RESPONSE)
   } catch (error) {
     console.error("Forgot password error:", error)
     return NextResponse.json(

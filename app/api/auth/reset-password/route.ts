@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { query } from "@/lib/db"
 import jwt from "jsonwebtoken"
 import bcrypt from "bcryptjs"
+import { getJwtSecret, isPasswordResetPayload } from "@/lib/auth-tokens"
 
 export async function POST(request: Request) {
   try {
@@ -15,10 +16,15 @@ export async function POST(request: Request) {
     }
 
     // Verify token
-    let decoded
+    // Only tokens issued by forgot-password are accepted; a session token
+    // signed with the same secret has no purpose claim and is rejected.
+    let decoded: unknown
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key") as { userId: string }
+      decoded = jwt.verify(token, getJwtSecret())
     } catch (error) {
+      decoded = null
+    }
+    if (!isPasswordResetPayload(decoded)) {
       return NextResponse.json(
         { message: "El enlace de recuperación no es válido o ha expirado" },
         { status: 400 }
