@@ -1,5 +1,0 @@
-{
-  "/forgot-password/page": "app/forgot-password/page.js",
-  "/login/page": "app/login/page.js",
-  "/api/auth/verify-recaptcha/route": "app/api/auth/verify-recaptcha/route.js"
-}
