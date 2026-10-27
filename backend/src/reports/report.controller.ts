@@ -1,5 +1,6 @@
 import type { Request, Response } from "express"
 import { reportService } from "./report.service"
+import { canAccessOwned } from "../auth/roles"
 import { createReportDtoSchema, updateReportDtoSchema } from "./report.dto"
 
 export class ReportController {
@@ -30,11 +31,20 @@ export class ReportController {
 
   async getReportById(req: Request, res: Response) {
     try {
+      const user = req.user
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" })
+      }
+
       const { id } = req.params
       const report = await reportService.getReportById(id)
 
       if (!report) {
         return res.status(404).json({ message: "Report not found" })
+      }
+
+      if (!canAccessOwned(user, report.user?.id)) {
+        return res.status(403).json({ message: "Forbidden" })
       }
 
       return res.status(200).json(report)

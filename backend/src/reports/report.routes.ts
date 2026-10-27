@@ -1,11 +1,13 @@
 import { Router } from "express"
 import { reportController } from "./report.controller"
 import { authenticate, authorize } from "../middleware/auth.middleware"
+import { STAFF_ROLES } from "../auth/roles"
 
 const router = Router()
 
 // Protected routes
-router.get("/", authenticate, reportController.getAllReports.bind(reportController))
+// Listing every report is for staff; owners use /my.
+router.get("/", authenticate, authorize(...STAFF_ROLES), reportController.getAllReports.bind(reportController))
 router.get("/my", authenticate, reportController.getMyReports.bind(reportController))
 router.get("/:id", authenticate, reportController.getReportById.bind(reportController))
 router.post("/", authenticate, reportController.createReport.bind(reportController))

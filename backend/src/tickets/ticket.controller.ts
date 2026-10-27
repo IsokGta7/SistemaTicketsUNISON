@@ -1,16 +1,24 @@
 import type { Request, Response } from "express"
 import { ticketService } from "./ticket.service"
+import { canAccessOwned, isStaff } from "../auth/roles"
 import { createTicketDtoSchema, updateTicketDtoSchema, createCommentDtoSchema } from "./ticket.dto"
 
 export class TicketController {
   async getAllTickets(req: Request, res: Response) {
     try {
+      const user = req.user
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" })
+      }
+
       const { status, priority, category } = req.query
 
       const filters: any = {}
       if (status) filters.status = status
       if (priority) filters.priority = priority
       if (category) filters.category = category
+      // Students and professors only ever see the tickets they created.
+      if (!isStaff(user.role)) filters.creatorId = user.id
 
       const tickets = await ticketService.getAllTickets(filters)
       return res.status(200).json(tickets)
@@ -37,11 +45,20 @@ export class TicketController {
 
   async getTicketById(req: Request, res: Response) {
     try {
+      const user = req.user
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" })
+      }
+
       const { id } = req.params
       const ticket = await ticketService.getTicketById(id)
 
       if (!ticket) {
         return res.status(404).json({ message: "Ticket not found" })
+      }
+
+      if (!canAccessOwned(user, ticket.creator?.id)) {
+        return res.status(403).json({ message: "Forbidden" })
       }
 
       return res.status(200).json(ticket)
@@ -79,6 +96,9 @@ export class TicketController {
       }
 
       const { id } = req.params
+      const denied = await this.denyUnlessOwnerOrStaff(req, res, id)
+      if (denied) return denied
+
       const validatedData = updateTicketDtoSchema.parse(req.body)
 
       const ticket = await ticketService.updateTicket(id, validatedData, userId)
@@ -100,6 +120,9 @@ export class TicketController {
       }
 
       const { id } = req.params
+      const denied = await this.denyUnlessOwnerOrStaff(req, res, id)
+      if (denied) return denied
+
       const validatedData = createCommentDtoSchema.parse(req.body)
 
       const comment = await ticketService.addComment(id, validatedData, userId)
@@ -111,6 +134,19 @@ export class TicketController {
       console.error("Error adding comment:", error)
       return res.status(500).json({ message: "Internal server error" })
     }
+  }
+
+  // Sends 404 or 403 and returns the response when the caller may not touch
+  // this ticket; returns undefined when they may.
+  private async denyUnlessOwnerOrStaff(req: Request, res: Response, ticketId: string) {
+    const creatorId = await ticketService.getTicketCreatorId(ticketId)
+    if (!creatorId) {
+      return res.status(404).json({ message: "Ticket not found" })
+    }
+    if (!req.user || !canAccessOwned(req.user, creatorId)) {
+      return res.status(403).json({ message: "Forbidden" })
+    }
+    return undefined
   }
 }
 

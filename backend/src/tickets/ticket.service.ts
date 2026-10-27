@@ -62,6 +62,14 @@ export class TicketService {
     return tickets.map(this.mapToTicketDto)
   }
 
+  async getTicketCreatorId(id: string): Promise<string | null> {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      select: { creatorId: true },
+    })
+    return ticket?.creatorId ?? null
+  }
+
   async getTicketById(id: string): Promise<TicketDto | null> {
     const ticket = await prisma.ticket.findUnique({
       where: { id },
