@@ -2,18 +2,23 @@ import { NextResponse } from "next/server"
 import { query } from "@/lib/db"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { isStaff, parsePagination } from "@/lib/ticket-access"
 
-// GET /api/tickets - Get all tickets with filters
+// GET /api/tickets - List tickets with filters. Staff see every ticket;
+// students and professors only see the tickets they created.
 export async function GET(request: Request) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ message: "No autorizado" }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
     const priority = searchParams.get("priority")
     const category = searchParams.get("category")
     const search = searchParams.get("search")
-    const page = parseInt(searchParams.get("page") || "1")
-    const limit = parseInt(searchParams.get("limit") || "10")
-    const offset = (page - 1) * limit
+    const { page, limit, offset } = parsePagination(searchParams.get("page"), searchParams.get("limit"))
 
     let queryString = `
       SELECT t.*, 
@@ -27,6 +32,11 @@ export async function GET(request: Request) {
       WHERE 1=1
     `
     const params = []
+
+    if (!isStaff(session.user.role)) {
+      queryString += ` AND t."creatorId" = $${params.length + 1}`
+      params.push(session.user.id)
+    }
 
     if (status && status !== "all") {
       queryString += ` AND t.status = $${params.length + 1}`
