@@ -2,12 +2,21 @@ const { Pool } = require('pg')
 const fs = require('fs')
 const path = require('path')
 
+const password = process.env.DB_PASSWORD
+if (!password) {
+  console.error('DB_PASSWORD is not set; export it (see .env.example) before running this script.')
+  process.exit(1)
+}
+const user = process.env.DB_USER || 'postgres'
+const host = process.env.DB_HOST || 'localhost'
+const port = Number(process.env.DB_PORT) || 5432
+
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
+  user,
+  host,
   database: 'postgres', // Connect to default database first
-  password: 'Gta7613205',
-  port: 5432,
+  password,
+  port,
 })
 
 async function setupDatabase() {
@@ -22,11 +31,11 @@ async function setupDatabase() {
     // Connect to the new database
     await client.end()
     const dbPool = new Pool({
-      user: 'postgres',
-      host: 'localhost',
+      user,
+      host,
       database: 'soportetickets',
-      password: 'Gta7613205',
-      port: 5432,
+      password,
+      port,
     })
 
     const dbClient = await dbPool.connect()

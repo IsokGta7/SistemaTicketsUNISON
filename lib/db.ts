@@ -1,23 +1,38 @@
 import { Pool, PoolClient, QueryResult } from 'pg'
 
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'soportetickets',
-  password: 'Gta7613205',
-  port: 5432,
-})
+// Connection settings come from the environment (see .env.example). The
+// password has no default: a missing DB_PASSWORD is a configuration error.
+// The pool is created on first use so that next build, which loads every
+// route module, does not need database credentials.
+let pool: Pool | undefined
+
+function getPool(): Pool {
+  if (!pool) {
+    const password = process.env.DB_PASSWORD
+    if (!password) {
+      throw new Error('DB_PASSWORD is not set')
+    }
+    pool = new Pool({
+      user: process.env.DB_USER || 'postgres',
+      host: process.env.DB_HOST || 'localhost',
+      database: process.env.DB_NAME || 'soportetickets',
+      password,
+      port: Number(process.env.DB_PORT) || 5432,
+    })
+  }
+  return pool
+}
 
 export const query = async (text: string, params?: any[]): Promise<QueryResult> => {
   const start = Date.now()
-  const res = await pool.query(text, params)
+  const res = await getPool().query(text, params)
   const duration = Date.now() - start
   console.log('Executed query', { text, duration, rows: res.rowCount })
   return res
 }
 
 export const getClient = async () => {
-  const client = await pool.connect()
+  const client = await getPool().connect()
   const originalQuery = client.query
   const originalRelease = client.release
 
